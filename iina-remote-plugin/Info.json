@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "identifier": "io.waj.iina-remote",
   "author": { "name": "agentwaj" },
-  "entry": "index.js"
+  "entry": "index.js",
+  "permissions": ["video-overlay"]
 }
-
