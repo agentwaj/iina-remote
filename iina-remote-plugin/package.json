@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "source": "src/index.ts",
   "targets": {
-    "plugin": {
+    "default": {
       "distDir": "dist",
       "outputFormat": "global",
       "isLibrary": true,
@@ -11,8 +11,8 @@
     }
   },
   "scripts": {
-    "build": "parcel build --target plugin && cp Info.json dist/",
-    "watch": "parcel watch --target plugin",
+    "build": "parcel build && cp ./src/public/* ./dist",
+    "watch": "npm run build && parcel watch",
     "link": "iina-plugin link dist",
     "unlink": "iina-plugin unlink dist"
   },
@@ -20,5 +20,8 @@
     "iina-plugin-definition": "^0.99.3",
     "parcel": "^2.16.3",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "qr": "^0.5.4"
   }
 }

@@ -1,30 +1,36 @@
-const { console, menu, overlay } = iina;
+import { getConnectionQr } from "./qr";
 
-console.log("IINA Remote loaded");
-
-let isMenuItemVisible = false;
+const { menu, overlay } = iina;
+const host = "localhost";
+const port = 9990;
+const token = Math.random().toString(36).substring(2, 15);
+let isOverlayVisible = false;
 
 const toggleOverlay = () => {
-  if (isMenuItemVisible) {
+  if (isOverlayVisible) {
     overlay.hide();
-    isMenuItemVisible = false;
-    return;
+    isOverlayVisible = false;
+  } else {
+    overlay.show();
+    isOverlayVisible = true;
   }
-
-  overlay.simpleMode();
-  overlay.setStyle(`.title { position: fixed; bottom: 0px; right: 20px; }`);
-  overlay.setContent(`<h1 class="title">IINA Remote</h1>`);
-  overlay.show();
-
-  isMenuItemVisible = true;
 };
 
-const menuItem = menu.item("Toggle connection QR", toggleOverlay, {
-  keyBinding: "q",
+iina.event.on("iina.window-loaded", () => {
+  overlay.loadFile("./overlay.html");
+  const menuItem = menu.item("Toggle connection QR", toggleOverlay, {
+    keyBinding: "q",
+  });
+  menu.addItem(menuItem);
 });
 
-iina.event.on("iina.window-loaded", () => {
-  menu.addItem(menuItem);
+iina.event.on("iina.plugin-overlay-loaded", () => {
+  overlay.postMessage("updateConnection", {
+    host,
+    port,
+    token,
+    qr: getConnectionQr({ host, port, token }),
+  });
 });
 
 iina.event.on("iina.window-did-close", () => {
