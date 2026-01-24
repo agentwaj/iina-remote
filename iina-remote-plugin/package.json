@@ -1,0 +1,14 @@
+{
+  "name": "iina-remote-plugin",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc && cp Info.json dist/",
+    "watch": "tsc -w",
+    "link": "iina-plugin link dist",
+    "unlink": "iina-plugin unlink dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "iina-plugin-definition": "^0.99.3"
+  }
+}

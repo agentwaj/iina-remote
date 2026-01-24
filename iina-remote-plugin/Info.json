@@ -1,0 +1,8 @@
+{
+  "name": "IINA Remote",
+  "version": "1.0.0",
+  "identifier": "io.waj.iina-remote",
+  "author": { "name": "agentwaj" },
+  "entry": "index.js"
+}
+
