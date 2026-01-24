@@ -1,14 +1,24 @@
 {
   "name": "iina-remote-plugin",
   "version": "1.0.0",
+  "source": "src/index.ts",
+  "targets": {
+    "plugin": {
+      "distDir": "dist",
+      "outputFormat": "global",
+      "isLibrary": true,
+      "sourceMap": false
+    }
+  },
   "scripts": {
-    "build": "tsc && cp Info.json dist/",
-    "watch": "tsc -w",
+    "build": "parcel build --target plugin && cp Info.json dist/",
+    "watch": "parcel watch --target plugin",
     "link": "iina-plugin link dist",
     "unlink": "iina-plugin unlink dist"
   },
   "devDependencies": {
-    "typescript": "^5.9.3",
-    "iina-plugin-definition": "^0.99.3"
+    "iina-plugin-definition": "^0.99.3",
+    "parcel": "^2.16.3",
+    "typescript": "^5.9.3"
   }
 }
