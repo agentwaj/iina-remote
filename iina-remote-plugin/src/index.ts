@@ -1,11 +1,11 @@
-import { getConnectionQr } from "./qr";
+import { getLocalIPv4, getConnectionQr } from "./utils";
 import { startServer } from "./server";
 
 const { menu, overlay } = iina;
 const keyBinding = "q";
-const host = "localhost";
 const port = 9990;
 const token = Math.random().toString(36).substring(2, 15);
+let host = "";
 let isOverlayVisible = false;
 
 const toggleOverlay = () => {
@@ -18,7 +18,9 @@ const toggleOverlay = () => {
   }
 };
 
-iina.event.on("iina.window-loaded", () => {
+iina.event.on("iina.window-loaded", async () => {
+  host = await getLocalIPv4();
+
   overlay.loadFile("./overlay.html");
 
   startServer(port, token);

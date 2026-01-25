@@ -4,5 +4,5 @@
   "identifier": "io.waj.iina-remote",
   "author": { "name": "agentwaj" },
   "entry": "index.js",
-  "permissions": ["video-overlay"]
+  "permissions": ["file-system", "video-overlay"]
 }

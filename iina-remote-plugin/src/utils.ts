@@ -1,5 +1,12 @@
 import encodeQr from "qr";
 
+export const getLocalIPv4 = async () => {
+  const route = await iina.utils.exec("/sbin/route", ["-n", "get", "default"]);
+  const iface = route.stdout.match(/interface:\s+(\S+)/)?.[1]?.trim() ?? "en0";
+  const ip = await iina.utils.exec("/usr/sbin/ipconfig", ["getifaddr", iface]);
+  return ip.stdout.trim();
+};
+
 export const getConnectionQr = ({
   host,
   port,
