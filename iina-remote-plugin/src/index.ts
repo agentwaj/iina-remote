@@ -2,6 +2,7 @@ import { getConnectionQr } from "./qr";
 import { startServer } from "./server";
 
 const { menu, overlay } = iina;
+const keyBinding = "q";
 const host = "localhost";
 const port = 9990;
 const token = Math.random().toString(36).substring(2, 15);
@@ -19,10 +20,6 @@ const toggleOverlay = () => {
 
 iina.event.on("iina.window-loaded", () => {
   overlay.loadFile("./overlay.html");
-  const menuItem = menu.item("Toggle connection QR", toggleOverlay, {
-    keyBinding: "q",
-  });
-  menu.addItem(menuItem);
 
   startServer(port, token);
 });
@@ -33,6 +30,16 @@ iina.event.on("iina.plugin-overlay-loaded", () => {
     port,
     token,
     qr: getConnectionQr({ host, port, token }),
+  });
+
+  const menuItem = menu.item("Toggle connection QR", toggleOverlay, {
+    keyBinding,
+  });
+  menu.addItem(menuItem);
+
+  iina.input.onKeyDown(keyBinding, () => {
+    toggleOverlay();
+    return true;
   });
 });
 
