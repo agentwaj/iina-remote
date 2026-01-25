@@ -1,4 +1,5 @@
 import { getConnectionQr } from "./qr";
+import { startServer } from "./server";
 
 const { menu, overlay } = iina;
 const host = "localhost";
@@ -22,6 +23,8 @@ iina.event.on("iina.window-loaded", () => {
     keyBinding: "q",
   });
   menu.addItem(menuItem);
+
+  startServer(port, token);
 });
 
 iina.event.on("iina.plugin-overlay-loaded", () => {
