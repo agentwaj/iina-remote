@@ -3,9 +3,9 @@ import { startServer } from "./server";
 
 const { menu, overlay } = iina;
 const keyBinding = "q";
-const port = 9990;
 const token = Math.random().toString(36).substring(2, 15);
 let host = "";
+let port = 0;
 let isOverlayVisible = false;
 
 const toggleOverlay = () => {
@@ -20,10 +20,10 @@ const toggleOverlay = () => {
 
 iina.event.on("iina.window-loaded", async () => {
   host = await getLocalIPv4();
-
-  overlay.loadFile("./overlay.html");
-
-  startServer(port, token);
+  startServer(token, (successPort) => {
+    port = successPort;
+    overlay.loadFile("./overlay.html");
+  });
 });
 
 iina.event.on("iina.plugin-overlay-loaded", () => {
