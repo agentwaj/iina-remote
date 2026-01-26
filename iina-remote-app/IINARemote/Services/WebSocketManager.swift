@@ -7,6 +7,7 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     @Published var errorMessage: String = ""
 
     private var connectionData: ConnectionData?
+    private var isManualDisconnect = false
     private lazy var urlSession: URLSession = {
         let configuration = URLSessionConfiguration.default
         return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
@@ -16,6 +17,7 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         self.connectionData = connectionData
         connectionStatus = .connecting
         errorMessage = ""
+        isManualDisconnect = false
 
         print("🔌 Attempting to connect to ws://\(connectionData.host):\(connectionData.port)")
 
@@ -35,6 +37,7 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     }
 
     func disconnect() {
+        isManualDisconnect = true
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         connectionStatus = .disconnected
@@ -77,9 +80,12 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
             case let .failure(error):
                 DispatchQueue.main.async {
                     self?.connectionStatus = .disconnected
+
+                    guard let self = self, !self.isManualDisconnect else { return }
+
                     let errorDesc = error.localizedDescription
                     print("❌ WebSocket connection failed: \(errorDesc)")
-                    self?.errorMessage = "Connection failed: \(errorDesc)"
+                    self.errorMessage = "Connection failed: \(errorDesc)"
                 }
             case let .success(message):
                 print("📨 Received WebSocket message")
@@ -99,16 +105,17 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
             }
         }
     }
-    
+
     // MARK: - URLSessionWebSocketDelegate
-    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol protocol: String?) {
+
+    func urlSession(_: URLSession, webSocketTask _: URLSessionWebSocketTask, didOpenWithProtocol _: String?) {
         DispatchQueue.main.async {
             self.connectionStatus = .connected
             print("✅ WebSocket connected successfully")
         }
     }
-    
-    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+
+    func urlSession(_: URLSession, webSocketTask _: URLSessionWebSocketTask, didCloseWith _: URLSessionWebSocketTask.CloseCode, reason _: Data?) {
         DispatchQueue.main.async {
             self.connectionStatus = .disconnected
             print("🔌 WebSocket disconnected")
