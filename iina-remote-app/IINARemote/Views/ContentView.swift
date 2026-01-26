@@ -4,6 +4,7 @@ struct ContentView: View {
     @StateObject private var webSocketManager = WebSocketManager()
     @StateObject private var qrScanner = QRScannerManager()
     @State private var showingScanner = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationView {
@@ -64,6 +65,11 @@ struct ContentView: View {
         }
         .onAppear {
             webSocketManager.autoConnectIfPossible()
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            if oldPhase == .background && newPhase == .active {
+                webSocketManager.autoConnectIfPossible()
+            }
         }
     }
 }
