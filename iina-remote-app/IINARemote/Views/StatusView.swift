@@ -46,6 +46,7 @@ struct StatusView: View {
                     .padding(.horizontal)
             }
         }
+        .frame(maxWidth: .infinity)
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(10)

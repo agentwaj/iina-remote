@@ -22,6 +22,8 @@ struct ContentView: View {
                     }
                 )
 
+                Spacer()
+
                 MediaControlsView(
                     isEnabled: webSocketManager.connectionStatus == .connected,
                     onPlay: { webSocketManager.sendCommand("play") },
@@ -29,8 +31,6 @@ struct ContentView: View {
                     onForward: { webSocketManager.sendCommand("forward") },
                     onBackward: { webSocketManager.sendCommand("backward") }
                 )
-
-                Spacer()
             }
             .padding()
             .navigationTitle("IINA Remote")

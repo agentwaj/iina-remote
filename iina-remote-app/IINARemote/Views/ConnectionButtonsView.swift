@@ -6,7 +6,7 @@ struct ConnectionButtonsView: View {
     let onDisconnect: () -> Void
 
     var body: some View {
-        HStack(spacing: 20) {
+        if status == .disconnected {
             Button(action: onConnect) {
                 Label("Connect", systemImage: "qrcode.viewfinder")
                     .frame(maxWidth: .infinity)
@@ -15,8 +15,8 @@ struct ConnectionButtonsView: View {
                     .foregroundColor(.white)
                     .cornerRadius(10)
             }
-            .disabled(status != .disconnected)
 
+        } else if status == .connected {
             Button(action: onDisconnect) {
                 Label("Disconnect", systemImage: "xmark.circle")
                     .frame(maxWidth: .infinity)
@@ -25,7 +25,10 @@ struct ConnectionButtonsView: View {
                     .foregroundColor(.white)
                     .cornerRadius(10)
             }
-            .disabled(status != .connected)
         }
     }
+}
+
+#Preview {
+    ConnectionButtonsView(status: .connecting, onConnect: {}, onDisconnect: {})
 }
