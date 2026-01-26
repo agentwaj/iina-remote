@@ -7,6 +7,7 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     private var webSocketTask: URLSessionWebSocketTask?
     @Published var connectionStatus: ConnectionStatus = .disconnected
     @Published var errorMessage: String = ""
+    @Published var currentTitle: String = ""
 
     private var connectionData: ConnectionData?
     private var isManualDisconnect = false
@@ -38,6 +39,7 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     }
 
     private func clearSavedConnectionData() {
+        currentTitle = ""
         UserDefaults.standard.removeObject(forKey: Self.connectionDataKey)
     }
 
@@ -81,6 +83,7 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         webSocketTask = nil
         connectionStatus = .disconnected
         errorMessage = ""
+        currentTitle = ""
 
         clearSavedConnectionData()
     }
@@ -162,6 +165,15 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
 
     private func handleResponse(data: Data) {
         DispatchQueue.main.async {
+            // Try to decode as TitleUpdate first
+            if let titleUpdate = try? JSONDecoder().decode(TitleUpdate.self, from: data),
+               titleUpdate.type == "title"
+            {
+                self.currentTitle = titleUpdate.title
+                return
+            }
+
+            // Otherwise, try to decode as CommandResponse
             do {
                 let response = try JSONDecoder().decode(CommandResponse.self, from: data)
                 if !response.ok {

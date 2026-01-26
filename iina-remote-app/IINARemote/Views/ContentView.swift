@@ -22,6 +22,22 @@ struct ContentView: View {
                     }
                 )
 
+                VStack(spacing: 8) {
+                    Text(webSocketManager.connectionStatus == .connected ? "Now Playing" : "Waiting to connect")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text(webSocketManager.currentTitle.isEmpty ? " " : webSocketManager.currentTitle)
+                        .font(.headline)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color(.systemBackground).opacity(0.5))
+                .cornerRadius(12)
+                .opacity(webSocketManager.connectionStatus == .connected ? 1 : 0.6)
+
                 Spacer()
 
                 MediaControlsView(

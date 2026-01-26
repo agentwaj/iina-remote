@@ -41,11 +41,18 @@ struct MediaControlsView: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color(.systemBackground).opacity(0.5))
         .cornerRadius(15)
+        .opacity(isEnabled ? 1 : 0.6)
     }
 }
 
 #Preview {
-    MediaControlsView(isEnabled: true, onPlay: {}, onPause: {}, onForward: {}, onBackward: {})
+    VStack(spacing: 20) {
+        MediaControlsView(isEnabled: true, onPlay: {}, onPause: {}, onForward: {}, onBackward: {})
+        MediaControlsView(isEnabled: false, onPlay: {}, onPause: {}, onForward: {}, onBackward: {})
+    }
+    .padding()
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(.gray)
 }

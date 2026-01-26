@@ -7,6 +7,11 @@ interface RemoteCommand {
 
 type CommandResponse = { ok: true } | { ok: false; error: string };
 
+interface TitleUpdate {
+  type: "title";
+  title: string;
+}
+
 export const startServer = (
   token: string,
   onSuccess: (port: number) => void,
@@ -61,6 +66,14 @@ const setupHandlers = (token: string) => {
     } catch (error) {
       sendResponse(connectionId, { ok: false, error: "Invalid message" });
     }
+  });
+
+  ws.onNewConnection((connectionId) => {
+    const titleUpdate: TitleUpdate = {
+      type: "title",
+      title: core.status.title || "No title",
+    };
+    ws.sendText(connectionId, JSON.stringify(titleUpdate));
   });
 };
 
