@@ -4,6 +4,8 @@ struct QRScannerSheet: View {
     @ObservedObject var scanner: QRScannerManager
     let onCancel: () -> Void
     let onConnect: (ConnectionData) -> Void
+    
+    @State private var hasConnected = false
 
     var body: some View {
         NavigationView {
@@ -65,11 +67,13 @@ struct QRScannerSheet: View {
             }
         }
         .onReceive(scanner.$connectionData) { connectionData in
-            if let connectionData = connectionData {
+            if let connectionData = connectionData, !hasConnected {
+                hasConnected = true
                 onConnect(connectionData)
             }
         }
         .onAppear {
+            hasConnected = false
             scanner.connectionData = nil
             scanner.scanningError = ""
 
