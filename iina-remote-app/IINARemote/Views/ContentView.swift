@@ -33,6 +33,7 @@ struct ContentView: View {
                 )
             }
             .padding()
+            .background(AuroraBackground())
             .navigationTitle("IINA Remote")
         }
         .sheet(isPresented: $showingScanner) {
