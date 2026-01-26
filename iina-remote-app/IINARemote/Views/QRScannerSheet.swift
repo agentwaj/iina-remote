@@ -19,9 +19,6 @@ struct QRScannerSheet: View {
                         ProgressView("Starting camera...")
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                             .foregroundColor(.white)
-                        Text("Point your camera at a QR code")
-                            .foregroundColor(.white)
-                            .multilineTextAlignment(.center)
                     }
                 }
 
@@ -37,7 +34,6 @@ struct QRScannerSheet: View {
                             .padding()
                     }
 
-                    // Scanning guide overlay
                     if scanner.isScanning {
                         VStack {
                             RoundedRectangle(cornerSize: .init(width: 10, height: 10))
@@ -74,12 +70,9 @@ struct QRScannerSheet: View {
             }
         }
         .onAppear {
-            print("QR scanner sheet has appeared")
-            // Reset scanner state when sheet appears
             scanner.connectionData = nil
             scanner.scanningError = ""
 
-            // Start scanning
             Task {
                 await scanner.startScanning()
             }

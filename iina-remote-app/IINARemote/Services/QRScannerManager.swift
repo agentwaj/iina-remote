@@ -29,52 +29,30 @@ class QRScannerManager: NSObject, ObservableObject, AVCaptureMetadataOutputObjec
     }
 
     func startScanning() async -> AVCaptureVideoPreviewLayer? {
-        // Reset previous errors
         await MainActor.run {
             scanningError = ""
             isScanning = true
         }
 
-        print("🎥 Starting camera initialization...")
-
-        // Check if running in simulator
-        #if targetEnvironment(simulator)
-            print("🚫 Running in simulator - camera not available")
-            await MainActor.run {
-                scanningError = "QR scanning not available in simulator."
-                isScanning = false
-            }
-            return nil
-        #endif
-
-        // Check camera permission first
-        print("📋 Checking camera permission...")
         guard await requestCameraPermission() else {
-            print("❌ Camera permission denied")
             await MainActor.run {
                 isScanning = false
             }
             return nil
         }
-        print("✅ Camera permission granted")
 
         guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else {
-            print("❌ No camera device available")
             await MainActor.run {
                 scanningError = "No camera available"
                 isScanning = false
             }
             return nil
         }
-        print("📷 Camera device found: \(videoCaptureDevice.localizedName)")
 
         do {
-            print("🔧 Creating video input...")
             let videoInput = try AVCaptureDeviceInput(device: videoCaptureDevice)
             captureSession = AVCaptureSession()
 
-            // Configure session for better performance
-            print("⚙️ Configuring capture session...")
             captureSession?.beginConfiguration()
             captureSession?.sessionPreset = .medium
 
@@ -108,24 +86,14 @@ class QRScannerManager: NSObject, ObservableObject, AVCaptureMetadataOutputObjec
             previewLayer = AVCaptureVideoPreviewLayer(session: captureSession!)
             previewLayer?.videoGravity = .resizeAspectFill
 
-            // Start session on background queue and update UI when ready
-            print("🚀 Starting capture session...")
             DispatchQueue.global(qos: .userInitiated).async {
                 self.captureSession?.startRunning()
-                print("📡 Capture session start command sent")
 
-                // Wait a moment for the session to fully start
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                     DispatchQueue.main.async {
                         let isRunning = self.captureSession?.isRunning == true
-                        print("🔍 Session running check: \(isRunning)")
 
-                        if isRunning {
-                            print("✅ Camera session is running successfully")
-                            // Camera is running, UI should show scanner
-                            // isScanning is already true from earlier
-                        } else {
-                            print("❌ Camera session failed to start")
+                        if !isRunning {
                             self.scanningError = "Failed to start camera session"
                             self.isScanning = false
                         }
@@ -157,7 +125,6 @@ class QRScannerManager: NSObject, ObservableObject, AVCaptureMetadataOutputObjec
             guard let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject else { return }
             guard let stringValue = readableObject.stringValue else { return }
 
-            // Provide haptic feedback
             let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
             impactFeedback.impactOccurred()
 
