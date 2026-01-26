@@ -16,7 +16,10 @@ struct ContentView: View {
                 ConnectionButtonsView(
                     status: webSocketManager.connectionStatus,
                     onConnect: { showingScanner = true },
-                    onDisconnect: { webSocketManager.disconnect() }
+                    onDisconnect: {
+                        webSocketManager.disconnect()
+                        qrScanner.connectionData = nil
+                    }
                 )
 
                 MediaControlsView(
