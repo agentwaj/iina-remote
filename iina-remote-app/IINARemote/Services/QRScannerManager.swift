@@ -125,6 +125,9 @@ class QRScannerManager: NSObject, ObservableObject, AVCaptureMetadataOutputObjec
             guard let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject else { return }
             guard let stringValue = readableObject.stringValue else { return }
 
+            // Prevent processing the same QR code multiple times
+            guard connectionData == nil else { return }
+
             let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
             impactFeedback.impactOccurred()
 
