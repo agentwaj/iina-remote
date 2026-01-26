@@ -19,8 +19,6 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         errorMessage = ""
         isManualDisconnect = false
 
-        print("🔌 Attempting to connect to ws://\(connectionData.host):\(connectionData.port)")
-
         let url = URL(string: "ws://\(connectionData.host):\(connectionData.port)")!
         webSocketTask = urlSession.webSocketTask(with: url)
 
@@ -48,12 +46,8 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     func sendCommand(_ command: String) {
         guard let connectionData = connectionData,
               connectionStatus == .connected
-        else {
-            print("⚠️ Cannot send command: not connected (status: \(connectionStatus))")
-            return
-        }
+        else { return }
 
-        print("📤 Sending command: \(command)")
         let remoteCommand = RemoteCommand(command: command, token: connectionData.token)
 
         do {
@@ -62,15 +56,11 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
             webSocketTask?.send(message) { [weak self] error in
                 if let error = error {
                     DispatchQueue.main.async {
-                        print("❌ Failed to send command: \(error.localizedDescription)")
                         self?.errorMessage = "Failed to send command: \(error.localizedDescription)"
                     }
-                } else {
-                    print("✅ Command sent successfully")
                 }
             }
         } catch {
-            print("❌ Failed to encode command: \(error.localizedDescription)")
             errorMessage = "Failed to encode command: \(error.localizedDescription)"
         }
     }
@@ -84,18 +74,13 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
 
                     guard let self = self, !self.isManualDisconnect else { return }
 
-                    let errorDesc = error.localizedDescription
-                    print("❌ WebSocket connection failed: \(errorDesc)")
-                    self.errorMessage = "Connection failed: \(errorDesc)"
+                    self.errorMessage = "Connection failed: \(error.localizedDescription)"
                 }
             case let .success(message):
-                print("📨 Received WebSocket message")
-
                 switch message {
                 case let .data(data):
                     self?.handleResponse(data: data)
                 case let .string(string):
-                    print("📨 Received string message: \(string)")
                     if let data = string.data(using: .utf8) {
                         self?.handleResponse(data: data)
                     }
@@ -112,14 +97,12 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     func urlSession(_: URLSession, webSocketTask _: URLSessionWebSocketTask, didOpenWithProtocol _: String?) {
         DispatchQueue.main.async {
             self.connectionStatus = .connected
-            print("✅ WebSocket connected successfully")
         }
     }
 
     func urlSession(_: URLSession, webSocketTask _: URLSessionWebSocketTask, didCloseWith _: URLSessionWebSocketTask.CloseCode, reason _: Data?) {
         DispatchQueue.main.async {
             self.connectionStatus = .disconnected
-            print("🔌 WebSocket disconnected")
         }
     }
 
