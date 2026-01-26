@@ -45,6 +45,9 @@ struct ContentView: View {
                 }
             )
         }
+        .onAppear {
+            webSocketManager.autoConnectIfPossible()
+        }
     }
 }
 

@@ -2,16 +2,51 @@ import Combine
 import Foundation
 
 class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate {
+    private static let connectionDataKey = "SavedConnectionData"
+
     private var webSocketTask: URLSessionWebSocketTask?
     @Published var connectionStatus: ConnectionStatus = .disconnected
     @Published var errorMessage: String = ""
 
     private var connectionData: ConnectionData?
     private var isManualDisconnect = false
+    private var isAutoConnecting = false
     private lazy var urlSession: URLSession = {
         let configuration = URLSessionConfiguration.default
         return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
     }()
+
+    // MARK: - Persistence
+
+    @MainActor
+    private func saveConnectionData(_ data: ConnectionData) {
+        do {
+            let encoded = try JSONEncoder().encode(data)
+            UserDefaults.standard.set(encoded, forKey: Self.connectionDataKey)
+        } catch {}
+    }
+
+    @MainActor
+    private func loadSavedConnectionData() -> ConnectionData? {
+        guard let data = UserDefaults.standard.data(forKey: Self.connectionDataKey) else { return nil }
+        do {
+            return try JSONDecoder().decode(ConnectionData.self, from: data)
+        } catch {
+            clearSavedConnectionData()
+            return nil
+        }
+    }
+
+    private func clearSavedConnectionData() {
+        UserDefaults.standard.removeObject(forKey: Self.connectionDataKey)
+    }
+
+    @MainActor
+    func autoConnectIfPossible() {
+        guard let savedData = loadSavedConnectionData() else { return }
+        isAutoConnecting = true
+        connect(to: savedData)
+    }
 
     func connect(to connectionData: ConnectionData) {
         self.connectionData = connectionData
@@ -29,7 +64,13 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
             if self.connectionStatus == .connecting {
                 self.connectionStatus = .disconnected
-                self.errorMessage = "Connection timeout - make sure IINA server is running and reachable"
+
+                if self.isAutoConnecting {
+                    self.clearSavedConnectionData()
+                    self.isAutoConnecting = false
+                } else {
+                    self.errorMessage = "Connection timeout - make sure IINA server is running and reachable"
+                }
             }
         }
     }
@@ -40,6 +81,8 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         webSocketTask = nil
         connectionStatus = .disconnected
         errorMessage = ""
+
+        clearSavedConnectionData()
     }
 
     @MainActor
@@ -74,7 +117,12 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
 
                     guard let self = self, !self.isManualDisconnect else { return }
 
-                    self.errorMessage = "Connection failed: \(error.localizedDescription)"
+                    if self.isAutoConnecting {
+                        self.clearSavedConnectionData()
+                        self.isAutoConnecting = false
+                    } else {
+                        self.errorMessage = "Connection failed: \(error.localizedDescription)"
+                    }
                 }
             case let .success(message):
                 switch message {
@@ -97,6 +145,12 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     func urlSession(_: URLSession, webSocketTask _: URLSessionWebSocketTask, didOpenWithProtocol _: String?) {
         DispatchQueue.main.async {
             self.connectionStatus = .connected
+
+            if let connectionData = self.connectionData {
+                self.saveConnectionData(connectionData)
+            }
+
+            self.isAutoConnecting = false
         }
     }
 
