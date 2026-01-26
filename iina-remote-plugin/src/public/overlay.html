@@ -42,6 +42,9 @@
         padding: 40px;
         border-radius: 20px;
       }
+      #title {
+        word-wrap: break-word;
+      }
       #info {
         width: 300px;
         font-size: 1.25em;
@@ -58,6 +61,7 @@
     <div id="root">
       <div id="info">
         <h1>IINA Remote</h1>
+        <p>Title: <span id="title">...</span></p>
         <p>Server: <span id="server">...</span></p>
         <p>Token: <span id="token">...</span></p>
       </div>
@@ -69,6 +73,10 @@
         document.getElementById("server").textContent = `${host}:${port}`;
         document.getElementById("token").textContent = token;
         document.getElementById("qr").innerHTML = qr;
+      });
+
+      iina.onMessage("updateTitle", ({ title }) => {
+        document.getElementById("title").textContent = title;
       });
     </script>
   </body>

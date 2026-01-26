@@ -1,7 +1,7 @@
 import { getLocalIPv4, getConnectionQr } from "./utils";
 import { startServer } from "./server";
 
-const { menu, overlay } = iina;
+const { menu, overlay, core } = iina;
 const keyBinding = "q";
 const token = Math.random().toString(36).substring(2, 15);
 let host = "";
@@ -33,6 +33,7 @@ iina.event.on("iina.plugin-overlay-loaded", () => {
     token,
     qr: getConnectionQr({ host, port, token }),
   });
+  overlay.postMessage("updateTitle", { title: core.status.title });
 
   const menuItem = menu.item("Toggle connection QR", toggleOverlay, {
     keyBinding,
