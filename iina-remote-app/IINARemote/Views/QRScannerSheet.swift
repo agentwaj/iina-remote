@@ -4,7 +4,7 @@ struct QRScannerSheet: View {
     @ObservedObject var scanner: QRScannerManager
     let onCancel: () -> Void
     let onConnect: (ConnectionData) -> Void
-    
+
     @State private var hasConnected = false
 
     var body: some View {
@@ -78,7 +78,7 @@ struct QRScannerSheet: View {
             scanner.scanningError = ""
 
             Task {
-                await scanner.startScanning()
+                _ = await scanner.startScanning()
             }
         }
         .onDisappear {
