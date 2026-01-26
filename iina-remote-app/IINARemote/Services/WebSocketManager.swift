@@ -44,6 +44,7 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         errorMessage = ""
     }
 
+    @MainActor
     func sendCommand(_ command: String) {
         guard let connectionData = connectionData,
               connectionStatus == .connected
@@ -123,15 +124,13 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     }
 
     private func handleResponse(data: Data) {
-        do {
-            let response = try JSONDecoder().decode(CommandResponse.self, from: data)
-            DispatchQueue.main.async {
+        DispatchQueue.main.async {
+            do {
+                let response = try JSONDecoder().decode(CommandResponse.self, from: data)
                 if !response.ok {
                     self.errorMessage = response.error ?? "Unknown error"
                 }
-            }
-        } catch {
-            DispatchQueue.main.async {
+            } catch {
                 self.errorMessage = "Invalid response: \(error.localizedDescription)"
             }
         }
