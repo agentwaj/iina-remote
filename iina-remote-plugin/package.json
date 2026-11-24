@@ -2,25 +2,18 @@
   "name": "iina-remote-plugin",
   "version": "1.0.0",
   "type": "module",
-  "source": "src/index.ts",
-  "targets": {
-    "default": {
-      "distDir": "dist",
-      "outputFormat": "global",
-      "isLibrary": true,
-      "sourceMap": false
-    }
-  },
   "scripts": {
-    "build": "parcel build && cp ./src/public/* ./dist",
-    "watch": "npm run build && parcel watch",
+    "typecheck": "tsc",
+    "bundle": "esbuild src/index.ts --bundle --format=iife --target=es2020 --outfile=dist/index.js",
+    "build": "npm run typecheck && npm run bundle && cp ./src/public/* ./dist",
+    "watch": "npm run build && npm run bundle -- --watch",
     "link": "iina-plugin link dist",
     "unlink": "iina-plugin unlink dist",
     "test": "node --test test/"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "iina-plugin-definition": "^0.99.3",
-    "parcel": "^2.16.3",
     "typescript": "^5.9.3"
   },
   "dependencies": {
