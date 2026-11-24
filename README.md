@@ -28,4 +28,6 @@ npm run build
 npm run link
 ```
 
+Run the plugin tests with `npm test`. They use a fake IINA, so IINA doesn't need to be running.
+
 For the iOS app, open `iina-remote-app` in Xcode and run.
