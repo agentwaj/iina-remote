@@ -4,6 +4,9 @@ struct ContentView: View {
     @StateObject private var webSocketManager = WebSocketManager()
     @StateObject private var qrScanner = QRScannerManager()
     @State private var showingScanner = false
+    // Returning goes background → inactive → active, so the phase that
+    // precedes .active is never .background; remember it instead.
+    @State private var wasInBackground = false
     @Environment(\.scenePhase) private var scenePhase
 
     private var errorMessage: String {
@@ -73,9 +76,15 @@ struct ContentView: View {
         .onAppear {
             webSocketManager.autoConnectIfPossible()
         }
-        .onChange(of: scenePhase) { oldPhase, newPhase in
-            if oldPhase == .background && newPhase == .active {
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .background:
+                wasInBackground = true
+            case .active where wasInBackground:
+                wasInBackground = false
                 webSocketManager.autoConnectIfPossible()
+            default:
+                break
             }
         }
     }
