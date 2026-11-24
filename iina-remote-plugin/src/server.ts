@@ -1,5 +1,11 @@
 const { ws, core, mpv, event } = iina;
 
+// Bump whenever commands or messages change, and raise the app's
+// minimumPluginProtocolVersion to match if the app depends on the change.
+// 1: play/pause/seek and title (implicit: those plugins send no hello)
+// 2: subtitle track selection and size
+export const PROTOCOL_VERSION = 2;
+
 interface RemoteCommand {
   command:
     | "play"
@@ -15,6 +21,13 @@ interface RemoteCommand {
 }
 
 type CommandResponse = { ok: true } | { ok: false; error: string };
+
+// Always the first message on a connection, so the app can tell whether
+// this plugin build supports what it needs.
+interface HelloMessage {
+  type: "hello";
+  protocolVersion: number;
+}
 
 interface TitleUpdate {
   type: "title";
@@ -97,6 +110,8 @@ const setupHandlers = (token: string) => {
 
   ws.onNewConnection((connectionId) => {
     connections.add(connectionId);
+    const hello: HelloMessage = { type: "hello", protocolVersion: PROTOCOL_VERSION };
+    ws.sendText(connectionId, JSON.stringify(hello));
     const titleUpdate: TitleUpdate = {
       type: "title",
       title: core.status.title || "No title",

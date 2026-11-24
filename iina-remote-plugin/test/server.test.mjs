@@ -41,7 +41,7 @@ globalThis.iina = {
 };
 
 // Imported after the global exists: server.ts reads `iina` at load time.
-const { startServer } = await import("../src/server.ts");
+const { startServer, PROTOCOL_VERSION } = await import("../src/server.ts");
 
 startServer(TOKEN, () => {});
 fake.handlers.state("ready");
@@ -67,9 +67,10 @@ beforeEach(() => {
 });
 
 describe("on connect", () => {
-  test("sends the title, then subtitles", () => {
+  test("sends hello first, then the title, then subtitles", () => {
     connect("c1");
-    const [title, subtitles] = sentTo("c1");
+    const [hello, title, subtitles] = sentTo("c1");
+    assert.deepEqual(hello, { type: "hello", protocolVersion: PROTOCOL_VERSION });
     assert.deepEqual(title, { type: "title", title: "Movie.mkv" });
     assert.equal(subtitles.type, "subtitles");
   });

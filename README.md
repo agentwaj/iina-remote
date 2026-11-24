@@ -28,6 +28,8 @@ npm run build
 npm run link
 ```
 
+IINA loads plugins at launch, so quit IINA (⌘Q) and reopen it after each build. If the app says the plugin is out of date, this is usually why.
+
 Run the plugin tests with `npm test`. They use a fake IINA, so IINA doesn't need to be running.
 
 For the iOS app, open `iina-remote-app` in Xcode and run.
