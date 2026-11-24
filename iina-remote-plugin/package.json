@@ -2,6 +2,9 @@
   "name": "iina-remote-plugin",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "typecheck": "tsc",
     "bundle": "esbuild src/index.ts --bundle --format=iife --target=es2020 --outfile=dist/index.js",
@@ -13,8 +16,8 @@
   },
   "devDependencies": {
     "esbuild": "^0.28.2",
-    "iina-plugin-definition": "^0.99.3",
-    "typescript": "^5.9.3"
+    "iina-plugin-definition": "^0.99.5",
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "qr": "^0.5.4"
