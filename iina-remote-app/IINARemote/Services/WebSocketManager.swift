@@ -8,6 +8,9 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     @Published var connectionStatus: ConnectionStatus = .disconnected
     @Published var errorMessage: String = ""
     @Published var currentTitle: String = ""
+    @Published var subtitleTracks: [SubtitleTrack] = []
+    /// 0 when subtitles are off.
+    @Published var currentSubtitleId: Int = 0
 
     private var connectionData: ConnectionData?
     private var isManualDisconnect = false
@@ -39,8 +42,14 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     }
 
     private func clearSavedConnectionData() {
-        currentTitle = ""
+        clearMediaInfo()
         UserDefaults.standard.removeObject(forKey: Self.connectionDataKey)
+    }
+
+    private func clearMediaInfo() {
+        currentTitle = ""
+        subtitleTracks = []
+        currentSubtitleId = 0
     }
 
     @MainActor
@@ -91,18 +100,23 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         webSocketTask = nil
         connectionStatus = .disconnected
         errorMessage = ""
-        currentTitle = ""
 
         clearSavedConnectionData()
     }
 
+    /// Pass 0 to turn subtitles off.
     @MainActor
-    func sendCommand(_ command: String) {
+    func selectSubtitle(_ id: Int) {
+        sendCommand("setSubtitle", subtitleId: id)
+    }
+
+    @MainActor
+    func sendCommand(_ command: String, subtitleId: Int? = nil) {
         guard let connectionData = connectionData,
               connectionStatus == .connected
         else { return }
 
-        let remoteCommand = RemoteCommand(command: command, token: connectionData.token)
+        let remoteCommand = RemoteCommand(command: command, token: connectionData.token, subtitleId: subtitleId)
 
         do {
             let data = try JSONEncoder().encode(remoteCommand)
@@ -187,6 +201,14 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
                titleUpdate.type == "title"
             {
                 self.currentTitle = titleUpdate.title
+                return
+            }
+
+            if let subtitleUpdate = try? JSONDecoder().decode(SubtitleUpdate.self, from: data),
+               subtitleUpdate.type == "subtitles"
+            {
+                self.subtitleTracks = subtitleUpdate.tracks
+                self.currentSubtitleId = subtitleUpdate.currentId
                 return
             }
 

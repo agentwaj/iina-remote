@@ -1,8 +1,17 @@
-const { ws, core } = iina;
+const { ws, core, mpv, event } = iina;
 
 interface RemoteCommand {
-  command: "play" | "pause" | "forward" | "backward";
+  command:
+    | "play"
+    | "pause"
+    | "forward"
+    | "backward"
+    | "setSubtitle"
+    | "subtitleLarger"
+    | "subtitleSmaller";
   token: string;
+  // Only for "setSubtitle". 0 turns subtitles off, matching IINA's own "None" track.
+  subtitleId?: number;
 }
 
 type CommandResponse = { ok: true } | { ok: false; error: string };
@@ -11,6 +20,24 @@ interface TitleUpdate {
   type: "title";
   title: string;
 }
+
+interface SubtitleUpdate {
+  type: "subtitles";
+  tracks: { id: number; title: string }[];
+  // 0 when subtitles are off.
+  currentId: number;
+}
+
+// An entry of mpv's `track-list` property.
+interface MpvTrack {
+  id: number;
+  type: "video" | "audio" | "sub";
+  title?: string;
+  lang?: string;
+  selected?: boolean;
+}
+
+const connections = new Set<string>();
 
 export const startServer = (
   token: string,
@@ -62,24 +89,63 @@ const setupHandlers = (token: string) => {
         sendResponse(connectionId, { ok: false, error: "Invalid token" });
         return;
       }
-      sendResponse(connectionId, executeCommand(command.command));
+      sendResponse(connectionId, executeCommand(command));
     } catch (error) {
       sendResponse(connectionId, { ok: false, error: "Invalid message" });
     }
   });
 
   ws.onNewConnection((connectionId) => {
+    connections.add(connectionId);
     const titleUpdate: TitleUpdate = {
       type: "title",
       title: core.status.title || "No title",
     };
     ws.sendText(connectionId, JSON.stringify(titleUpdate));
+    ws.sendText(connectionId, JSON.stringify(getSubtitleUpdate()));
   });
+
+  ws.onConnectionStateUpdate((connectionId, state) => {
+    if (state === "failed" || state === "cancelled") {
+      connections.delete(connectionId);
+    }
+  });
+
+  // Fires when the user switches tracks (from IINA or the remote), a subtitle
+  // file is added, or a new file loads.
+  const broadcastSubtitles = () => {
+    const message = JSON.stringify(getSubtitleUpdate());
+    connections.forEach((connectionId) => ws.sendText(connectionId, message));
+  };
+  event.on("mpv.sid.changed", broadcastSubtitles);
+  event.on("mpv.track-list.changed", broadcastSubtitles);
 };
 
-const executeCommand = (command: string): CommandResponse => {
+// Read mpv's track-list directly instead of core.subtitle: IINA refreshes its
+// cached track info asynchronously, so it can still be stale when these
+// change events fire.
+const getSubtitleUpdate = (): SubtitleUpdate => {
+  const subtitles = (mpv.getNative<MpvTrack[]>("track-list") ?? []).filter(
+    (track) => track.type === "sub",
+  );
+  return {
+    type: "subtitles",
+    tracks: subtitles.map((track) => ({
+      id: track.id,
+      title: formatTrackTitle(track),
+    })),
+    currentId: subtitles.find((track) => track.selected)?.id ?? 0,
+  };
+};
+
+const formatTrackTitle = ({ id, title, lang }: MpvTrack) => {
+  const language = lang && lang !== "und" ? `[${lang}]` : "";
+  return [title, language].filter(Boolean).join(" ") || `Track ${id}`;
+};
+
+const executeCommand = (command: RemoteCommand): CommandResponse => {
   try {
-    switch (command) {
+    switch (command.command) {
       case "play":
         core.resume();
         break;
@@ -91,6 +157,19 @@ const executeCommand = (command: string): CommandResponse => {
         break;
       case "backward":
         core.seek(-5, true);
+        break;
+      case "setSubtitle":
+        if (!Number.isInteger(command.subtitleId)) {
+          return { ok: false, error: "Invalid subtitle track" };
+        }
+        core.subtitle.id = command.subtitleId!;
+        break;
+      // Same step as IINA's default Shift+G / Shift+F bindings.
+      case "subtitleLarger":
+        mpv.command("add", ["sub-scale", "0.1"]);
+        break;
+      case "subtitleSmaller":
+        mpv.command("add", ["sub-scale", "-0.1"]);
         break;
 
       default:
