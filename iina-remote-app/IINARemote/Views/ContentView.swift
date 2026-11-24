@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var webSocketManager = WebSocketManager()
-    @StateObject private var qrScanner = QRScannerManager()
+    @State private var webSocketManager = WebSocketManager()
+    @State private var qrScanner = QRScannerManager()
     @State private var showingScanner = false
     // Returning goes background → inactive → active, so the phase that
     // precedes .active is never .background; remember it instead.

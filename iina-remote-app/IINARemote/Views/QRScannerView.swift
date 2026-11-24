@@ -2,7 +2,7 @@ import AVFoundation
 import SwiftUI
 
 struct QRScannerView: UIViewRepresentable {
-    @ObservedObject var scanner: QRScannerManager
+    let scanner: QRScannerManager
 
     class Coordinator: NSObject {
         var parent: QRScannerView

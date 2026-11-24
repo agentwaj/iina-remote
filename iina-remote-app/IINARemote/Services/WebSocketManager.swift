@@ -1,34 +1,48 @@
-import Combine
 import Foundation
+import Observation
 
-class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate {
+@Observable
+final class WebSocketManager {
     private static let connectionDataKey = "SavedConnectionData"
     /// Raise when the app starts relying on newer plugin commands or messages.
     /// See PROTOCOL_VERSION in the plugin's server.ts.
     private static let minimumPluginProtocolVersion = 2
 
-    private var webSocketTask: URLSessionWebSocketTask?
-    @Published var connectionStatus: ConnectionStatus = .disconnected
-    @Published var errorMessage: String = ""
-    @Published var currentTitle: String = ""
-    @Published var subtitleTracks: [SubtitleTrack] = []
+    private(set) var connectionStatus: ConnectionStatus = .disconnected
+    private(set) var errorMessage: String = ""
+    private(set) var currentTitle: String = ""
+    private(set) var subtitleTracks: [SubtitleTrack] = []
     /// 0 when subtitles are off.
-    @Published var currentSubtitleId: Int = 0
+    private(set) var currentSubtitleId: Int = 0
     /// The connected plugin is too old for this app; set from its hello message.
-    @Published var isPluginOutdated = false
+    private(set) var isPluginOutdated = false
 
-    private var connectionData: ConnectionData?
-    private var hasReceivedHello = false
-    private var isManualDisconnect = false
-    private var isAutoConnecting = false
-    private lazy var urlSession: URLSession = {
-        let configuration = URLSessionConfiguration.default
-        return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
-    }()
+    @ObservationIgnored private var webSocketTask: URLSessionWebSocketTask?
+    @ObservationIgnored private var connectionData: ConnectionData?
+    @ObservationIgnored private var hasReceivedHello = false
+    @ObservationIgnored private var isManualDisconnect = false
+    @ObservationIgnored private var isAutoConnecting = false
+    @ObservationIgnored private let urlSession: URLSession
+    @ObservationIgnored private var socketEventsTask: Task<Void, Never>?
+
+    init() {
+        // URLSession calls its delegate on a background queue, so the delegate
+        // only forwards open/close events here, onto the main actor.
+        let (events, continuation) = AsyncStream.makeStream(of: SocketEvent.self)
+        urlSession = URLSession(
+            configuration: .default,
+            delegate: SocketEventDelegate(events: continuation),
+            delegateQueue: nil
+        )
+        socketEventsTask = Task { [weak self] in
+            for await event in events {
+                self?.handle(event)
+            }
+        }
+    }
 
     // MARK: - Persistence
 
-    @MainActor
     private func saveConnectionData(_ data: ConnectionData) {
         do {
             let encoded = try JSONEncoder().encode(data)
@@ -36,7 +50,6 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         } catch {}
     }
 
-    @MainActor
     private func loadSavedConnectionData() -> ConnectionData? {
         guard let data = UserDefaults.standard.data(forKey: Self.connectionDataKey) else { return nil }
         do {
@@ -58,7 +71,6 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         currentSubtitleId = 0
     }
 
-    @MainActor
     func autoConnectIfPossible() {
         guard let savedData = loadSavedConnectionData() else { return }
         isAutoConnecting = true
@@ -74,7 +86,7 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         hasReceivedHello = false
 
         // Close any previous socket (e.g. one left over from before the app was
-        // backgrounded). Its callbacks are ignored by the identity checks below.
+        // backgrounded). Its events are ignored by the identity checks below.
         webSocketTask?.cancel(with: .goingAway, reason: nil)
 
         let url = URL(string: "ws://\(connectionData.host):\(connectionData.port)")!
@@ -82,22 +94,21 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         webSocketTask = task
 
         task.resume()
-        receiveMessage(on: task)
+        Task { await receiveMessages(on: task) }
 
         // Set a timeout for connection
-        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+        Task {
+            try? await Task.sleep(for: .seconds(10))
             // A newer connect() owns the state now.
-            guard task === self.webSocketTask else { return }
+            guard task === webSocketTask, connectionStatus == .connecting else { return }
 
-            if self.connectionStatus == .connecting {
-                self.connectionStatus = .disconnected
+            connectionStatus = .disconnected
 
-                if self.isAutoConnecting {
-                    self.clearSavedConnectionData()
-                    self.isAutoConnecting = false
-                } else {
-                    self.errorMessage = "Connection timeout - make sure IINA server is running and reachable"
-                }
+            if isAutoConnecting {
+                clearSavedConnectionData()
+                isAutoConnecting = false
+            } else {
+                errorMessage = "Connection timeout - make sure IINA server is running and reachable"
             }
         }
     }
@@ -113,146 +124,171 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     }
 
     /// Pass 0 to turn subtitles off.
-    @MainActor
     func selectSubtitle(_ id: Int) {
         sendCommand("setSubtitle", subtitleId: id)
     }
 
-    @MainActor
     func sendCommand(_ command: String, subtitleId: Int? = nil) {
         guard let connectionData = connectionData,
+              let task = webSocketTask,
               connectionStatus == .connected
         else { return }
 
         let remoteCommand = RemoteCommand(command: command, token: connectionData.token, subtitleId: subtitleId)
 
+        let data: Data
         do {
-            let data = try JSONEncoder().encode(remoteCommand)
-            let message = URLSessionWebSocketTask.Message.data(data)
-            webSocketTask?.send(message) { [weak self] error in
-                if let error = error {
-                    DispatchQueue.main.async {
-                        self?.errorMessage = "Failed to send command: \(error.localizedDescription)"
-                    }
-                }
-            }
+            data = try JSONEncoder().encode(remoteCommand)
         } catch {
             errorMessage = "Failed to encode command: \(error.localizedDescription)"
+            return
         }
-    }
 
-    private func receiveMessage(on task: URLSessionWebSocketTask) {
-        task.receive { [weak self] result in
-            switch result {
-            case let .failure(error):
-                DispatchQueue.main.async {
-                    // A failure from a replaced socket says nothing about the current one.
-                    guard let self = self, task === self.webSocketTask else { return }
-
-                    self.connectionStatus = .disconnected
-
-                    guard !self.isManualDisconnect else { return }
-
-                    if self.isAutoConnecting {
-                        self.clearSavedConnectionData()
-                        self.isAutoConnecting = false
-                    } else {
-                        self.errorMessage = "Connection failed: \(error.localizedDescription)"
-                    }
-                }
-            case let .success(message):
-                switch message {
-                case let .data(data):
-                    self?.handleResponse(data: data, from: task)
-                case let .string(string):
-                    if let data = string.data(using: .utf8) {
-                        self?.handleResponse(data: data, from: task)
-                    }
-                @unknown default:
-                    break
-                }
-                self?.receiveMessage(on: task)
-            }
-        }
-    }
-
-    // MARK: - URLSessionWebSocketDelegate
-
-    func urlSession(_: URLSession, webSocketTask task: URLSessionWebSocketTask, didOpenWithProtocol _: String?) {
-        DispatchQueue.main.async {
-            guard task === self.webSocketTask else { return }
-
-            self.connectionStatus = .connected
-            // Anything from earlier attempts no longer applies.
-            self.errorMessage = ""
-
-            if let connectionData = self.connectionData {
-                self.saveConnectionData(connectionData)
-            }
-
-            self.isAutoConnecting = false
-        }
-    }
-
-    func urlSession(_: URLSession, webSocketTask task: URLSessionWebSocketTask, didCloseWith _: URLSessionWebSocketTask.CloseCode, reason _: Data?) {
-        DispatchQueue.main.async {
-            guard task === self.webSocketTask else { return }
-
-            self.connectionStatus = .disconnected
-        }
-    }
-
-    private func handleResponse(data: Data, from task: URLSessionWebSocketTask) {
-        DispatchQueue.main.async {
-            // A message still buffered on a replaced socket would confuse the hello check.
-            guard task === self.webSocketTask else { return }
-
-            if let hello = try? JSONDecoder().decode(HelloMessage.self, from: data),
-               hello.type == "hello"
-            {
-                self.hasReceivedHello = true
-                self.isPluginOutdated = hello.protocolVersion < Self.minimumPluginProtocolVersion
-                return
-            }
-
-            let messageType = (try? JSONDecoder().decode(MessageEnvelope.self, from: data))?.type
-            // Hello is always sent first, so plugins from before the handshake
-            // reveal themselves by pushing anything else before it.
-            if messageType != nil, !self.hasReceivedHello {
-                self.isPluginOutdated = true
-            }
-
-            // Try to decode as TitleUpdate first
-            if let titleUpdate = try? JSONDecoder().decode(TitleUpdate.self, from: data),
-               titleUpdate.type == "title"
-            {
-                self.currentTitle = titleUpdate.title
-                return
-            }
-
-            if let subtitleUpdate = try? JSONDecoder().decode(SubtitleUpdate.self, from: data),
-               subtitleUpdate.type == "subtitles"
-            {
-                self.subtitleTracks = subtitleUpdate.tracks
-                self.currentSubtitleId = subtitleUpdate.currentId
-                return
-            }
-
-            // A pushed message from a newer plugin that this app doesn't know yet.
-            if messageType != nil { return }
-
-            // Otherwise, try to decode as CommandResponse
+        Task {
             do {
-                let response = try JSONDecoder().decode(CommandResponse.self, from: data)
-                if response.ok {
-                    // A command just went through, so any earlier error is stale.
-                    self.errorMessage = ""
-                } else {
-                    self.errorMessage = response.error ?? "Unknown error"
-                }
+                try await task.send(.data(data))
             } catch {
-                self.errorMessage = "Invalid response: \(error.localizedDescription)"
+                guard task === webSocketTask else { return }
+                errorMessage = "Failed to send command: \(error.localizedDescription)"
             }
         }
+    }
+
+    // MARK: - Socket events
+
+    private func receiveMessages(on task: URLSessionWebSocketTask) async {
+        while true {
+            let message: URLSessionWebSocketTask.Message
+            do {
+                message = try await task.receive()
+            } catch {
+                handleReceiveFailure(error, on: task)
+                return
+            }
+
+            // A message still buffered on a replaced socket would confuse the hello check.
+            guard task === webSocketTask else { return }
+
+            switch message {
+            case let .data(data):
+                handleMessage(data)
+            case let .string(string):
+                if let data = string.data(using: .utf8) {
+                    handleMessage(data)
+                }
+            @unknown default:
+                break
+            }
+        }
+    }
+
+    private func handleReceiveFailure(_ error: Error, on task: URLSessionWebSocketTask) {
+        // A failure from a replaced socket says nothing about the current one.
+        guard task === webSocketTask else { return }
+
+        connectionStatus = .disconnected
+
+        guard !isManualDisconnect else { return }
+
+        if isAutoConnecting {
+            clearSavedConnectionData()
+            isAutoConnecting = false
+        } else {
+            errorMessage = "Connection failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func handle(_ event: SocketEvent) {
+        switch event {
+        case let .opened(task):
+            guard task === webSocketTask else { return }
+
+            connectionStatus = .connected
+            // Anything from earlier attempts no longer applies.
+            errorMessage = ""
+
+            if let connectionData {
+                saveConnectionData(connectionData)
+            }
+
+            isAutoConnecting = false
+
+        case let .closed(task):
+            guard task === webSocketTask else { return }
+
+            connectionStatus = .disconnected
+        }
+    }
+
+    private func handleMessage(_ data: Data) {
+        if let hello = try? JSONDecoder().decode(HelloMessage.self, from: data),
+           hello.type == "hello"
+        {
+            hasReceivedHello = true
+            isPluginOutdated = hello.protocolVersion < Self.minimumPluginProtocolVersion
+            return
+        }
+
+        let messageType = (try? JSONDecoder().decode(MessageEnvelope.self, from: data))?.type
+        // Hello is always sent first, so plugins from before the handshake
+        // reveal themselves by pushing anything else before it.
+        if messageType != nil, !hasReceivedHello {
+            isPluginOutdated = true
+        }
+
+        // Try to decode as TitleUpdate first
+        if let titleUpdate = try? JSONDecoder().decode(TitleUpdate.self, from: data),
+           titleUpdate.type == "title"
+        {
+            currentTitle = titleUpdate.title
+            return
+        }
+
+        if let subtitleUpdate = try? JSONDecoder().decode(SubtitleUpdate.self, from: data),
+           subtitleUpdate.type == "subtitles"
+        {
+            subtitleTracks = subtitleUpdate.tracks
+            currentSubtitleId = subtitleUpdate.currentId
+            return
+        }
+
+        // A pushed message from a newer plugin that this app doesn't know yet.
+        if messageType != nil { return }
+
+        // Otherwise, try to decode as CommandResponse
+        do {
+            let response = try JSONDecoder().decode(CommandResponse.self, from: data)
+            if response.ok {
+                // A command just went through, so any earlier error is stale.
+                errorMessage = ""
+            } else {
+                errorMessage = response.error ?? "Unknown error"
+            }
+        } catch {
+            errorMessage = "Invalid response: \(error.localizedDescription)"
+        }
+    }
+}
+
+private enum SocketEvent: Sendable {
+    case opened(URLSessionWebSocketTask)
+    case closed(URLSessionWebSocketTask)
+}
+
+/// URLSession requires a thread-safe delegate. This one holds no state of its
+/// own and just hands events to the manager through the stream.
+private nonisolated final class SocketEventDelegate: NSObject, URLSessionWebSocketDelegate, Sendable {
+    private let events: AsyncStream<SocketEvent>.Continuation
+
+    init(events: AsyncStream<SocketEvent>.Continuation) {
+        self.events = events
+    }
+
+    func urlSession(_: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol _: String?) {
+        events.yield(.opened(webSocketTask))
+    }
+
+    func urlSession(_: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith _: URLSessionWebSocketTask.CloseCode, reason _: Data?) {
+        events.yield(.closed(webSocketTask))
     }
 }

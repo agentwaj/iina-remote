@@ -8,7 +8,7 @@ struct MediaControlsView: View {
     let onPause: () -> Void
     let onForward: () -> Void
     let onBackward: () -> Void
-    let onSelectSubtitle: (Int) -> Void
+    let onSelectSubtitle: @MainActor (Int) -> Void
     let onSubtitleSmaller: () -> Void
     let onSubtitleLarger: () -> Void
 
@@ -86,7 +86,7 @@ private struct SubtitlePicker: View {
     let tracks: [SubtitleTrack]
     let currentId: Int
     let isEnabled: Bool
-    let onSelect: (Int) -> Void
+    let onSelect: @MainActor (Int) -> Void
 
     private var canSelect: Bool { isEnabled && !tracks.isEmpty }
 

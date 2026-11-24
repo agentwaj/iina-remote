@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct QRScannerSheet: View {
-    @ObservedObject var scanner: QRScannerManager
+    let scanner: QRScannerManager
     let onCancel: () -> Void
     let onConnect: (ConnectionData) -> Void
 
@@ -67,7 +67,7 @@ struct QRScannerSheet: View {
                 }
             }
         }
-        .onReceive(scanner.$connectionData) { connectionData in
+        .onChange(of: scanner.connectionData) { _, connectionData in
             if let connectionData = connectionData, !hasConnected {
                 hasConnected = true
                 onConnect(connectionData)
