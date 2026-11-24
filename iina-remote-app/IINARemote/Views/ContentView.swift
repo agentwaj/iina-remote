@@ -21,7 +21,7 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 20) {
                 StatusView(
                     status: webSocketManager.connectionStatus,
@@ -40,7 +40,7 @@ struct ContentView: View {
                 VStack(spacing: 8) {
                     Text(webSocketManager.connectionStatus == .connected ? "Now Playing" : "Waiting to connect")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
 
                     Text(webSocketManager.currentTitle.isEmpty ? " " : webSocketManager.currentTitle)
                         .font(.headline)
@@ -50,7 +50,7 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color(.systemBackground).opacity(0.5))
-                .cornerRadius(12)
+                .clipShape(.rect(cornerRadius: 12))
                 .opacity(webSocketManager.connectionStatus == .connected ? 1 : 0.6)
 
                 Spacer()

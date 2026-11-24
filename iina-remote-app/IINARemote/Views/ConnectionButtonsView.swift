@@ -12,8 +12,8 @@ struct ConnectionButtonsView: View {
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(status == .disconnected ? Color.blue : Color.gray)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
+                    .foregroundStyle(.white)
+                    .clipShape(.rect(cornerRadius: 10))
             }
 
         } else if status == .connected {
@@ -22,8 +22,8 @@ struct ConnectionButtonsView: View {
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(status == .connected ? Color.red : Color.gray)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
+                    .foregroundStyle(.white)
+                    .clipShape(.rect(cornerRadius: 10))
             }
         }
     }

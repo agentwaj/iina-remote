@@ -77,7 +77,7 @@ struct MediaControlsView: View {
         .frame(maxWidth: .infinity)
         .padding()
         .background(Color(.systemBackground).opacity(0.5))
-        .cornerRadius(15)
+        .clipShape(.rect(cornerRadius: 15))
         .opacity(isEnabled ? 1 : 0.6)
     }
 }
@@ -112,8 +112,8 @@ private struct SubtitlePicker: View {
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(canSelect ? Color.blue : Color.gray)
-                .foregroundColor(.white)
-                .cornerRadius(10)
+                .foregroundStyle(.white)
+                .clipShape(.rect(cornerRadius: 10))
         }
         .disabled(!canSelect)
     }

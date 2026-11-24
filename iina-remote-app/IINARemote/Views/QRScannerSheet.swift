@@ -8,7 +8,7 @@ struct QRScannerSheet: View {
     @State private var hasConnected = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 Color.black
                     .ignoresSafeArea()
@@ -19,8 +19,9 @@ struct QRScannerSheet: View {
                 } else {
                     VStack(spacing: 20) {
                         ProgressView("Starting camera...")
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .foregroundColor(.white)
+                            .progressViewStyle(.circular)
+                            .tint(.white)
+                            .foregroundStyle(.white)
                     }
                 }
 
@@ -31,8 +32,8 @@ struct QRScannerSheet: View {
                         Text("Error: \(scanner.scanningError)")
                             .padding()
                             .background(Color.red)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
+                            .foregroundStyle(.white)
+                            .clipShape(.rect(cornerRadius: 10))
                             .padding()
                     }
 
@@ -44,10 +45,10 @@ struct QRScannerSheet: View {
                                 .background(Color.clear)
 
                             Text("Position QR code within the frame")
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                                 .padding()
                                 .background(Color.black.opacity(0.7))
-                                .cornerRadius(8)
+                                .clipShape(.rect(cornerRadius: 8))
                         }
                     }
 
@@ -57,12 +58,12 @@ struct QRScannerSheet: View {
             .navigationTitle("Scan QR Code")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Cancel") {
                         scanner.stopScanning()
                         onCancel()
                     }
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                 }
             }
         }

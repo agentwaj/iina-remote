@@ -11,7 +11,7 @@ struct MediaButton: View {
                 .font(.title)
                 .frame(width: 60, height: 60)
                 .background(isEnabled ? Color.blue : Color.gray)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .clipShape(Circle())
         }
         .disabled(!isEnabled)
