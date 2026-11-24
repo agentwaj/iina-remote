@@ -86,11 +86,16 @@ class QRScannerManager: NSObject, ObservableObject, AVCaptureMetadataOutputObjec
             previewLayer = AVCaptureVideoPreviewLayer(session: captureSession!)
             previewLayer?.videoGravity = .resizeAspectFill
 
+            let sessionID = captureSession.map(ObjectIdentifier.init)
             DispatchQueue.global(qos: .userInitiated).async {
                 self.captureSession?.startRunning()
 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                     DispatchQueue.main.async {
+                        // If a code was scanned (or the sheet closed) within the second,
+                        // stopScanning() already ended this session on purpose.
+                        guard self.captureSession.map(ObjectIdentifier.init) == sessionID else { return }
+
                         let isRunning = self.captureSession?.isRunning == true
 
                         if !isRunning {
@@ -134,6 +139,7 @@ class QRScannerManager: NSObject, ObservableObject, AVCaptureMetadataOutputObjec
             do {
                 if let data = stringValue.data(using: .utf8) {
                     connectionData = try JSONDecoder().decode(ConnectionData.self, from: data)
+                    scanningError = ""
                     stopScanning()
                 }
             } catch {
