@@ -41,7 +41,7 @@ struct StatusView: View {
             if !errorMessage.isEmpty {
                 Text("Error: \(errorMessage)")
                     .font(.caption)
-                    .foregroundColor(.red)
+                    .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
@@ -49,7 +49,7 @@ struct StatusView: View {
         .frame(maxWidth: .infinity)
         .padding()
         .background(Color(.systemGray6))
-        .cornerRadius(10)
+        .clipShape(.rect(cornerRadius: 10))
     }
 }
 
