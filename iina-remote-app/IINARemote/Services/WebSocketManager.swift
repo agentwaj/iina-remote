@@ -3,6 +3,9 @@ import Foundation
 
 class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate {
     private static let connectionDataKey = "SavedConnectionData"
+    /// Raise when the app starts relying on newer plugin commands or messages.
+    /// See PROTOCOL_VERSION in the plugin's server.ts.
+    private static let minimumPluginProtocolVersion = 2
 
     private var webSocketTask: URLSessionWebSocketTask?
     @Published var connectionStatus: ConnectionStatus = .disconnected
@@ -11,8 +14,11 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     @Published var subtitleTracks: [SubtitleTrack] = []
     /// 0 when subtitles are off.
     @Published var currentSubtitleId: Int = 0
+    /// The connected plugin is too old for this app; set from its hello message.
+    @Published var isPluginOutdated = false
 
     private var connectionData: ConnectionData?
+    private var hasReceivedHello = false
     private var isManualDisconnect = false
     private var isAutoConnecting = false
     private lazy var urlSession: URLSession = {
@@ -64,6 +70,8 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         connectionStatus = .connecting
         errorMessage = ""
         isManualDisconnect = false
+        isPluginOutdated = false
+        hasReceivedHello = false
 
         // Close any previous socket (e.g. one left over from before the app was
         // backgrounded). Its callbacks are ignored by the identity checks below.
@@ -155,10 +163,10 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
             case let .success(message):
                 switch message {
                 case let .data(data):
-                    self?.handleResponse(data: data)
+                    self?.handleResponse(data: data, from: task)
                 case let .string(string):
                     if let data = string.data(using: .utf8) {
-                        self?.handleResponse(data: data)
+                        self?.handleResponse(data: data, from: task)
                     }
                 @unknown default:
                     break
@@ -194,8 +202,26 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         }
     }
 
-    private func handleResponse(data: Data) {
+    private func handleResponse(data: Data, from task: URLSessionWebSocketTask) {
         DispatchQueue.main.async {
+            // A message still buffered on a replaced socket would confuse the hello check.
+            guard task === self.webSocketTask else { return }
+
+            if let hello = try? JSONDecoder().decode(HelloMessage.self, from: data),
+               hello.type == "hello"
+            {
+                self.hasReceivedHello = true
+                self.isPluginOutdated = hello.protocolVersion < Self.minimumPluginProtocolVersion
+                return
+            }
+
+            let messageType = (try? JSONDecoder().decode(MessageEnvelope.self, from: data))?.type
+            // Hello is always sent first, so plugins from before the handshake
+            // reveal themselves by pushing anything else before it.
+            if messageType != nil, !self.hasReceivedHello {
+                self.isPluginOutdated = true
+            }
+
             // Try to decode as TitleUpdate first
             if let titleUpdate = try? JSONDecoder().decode(TitleUpdate.self, from: data),
                titleUpdate.type == "title"
@@ -211,6 +237,9 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
                 self.currentSubtitleId = subtitleUpdate.currentId
                 return
             }
+
+            // A pushed message from a newer plugin that this app doesn't know yet.
+            if messageType != nil { return }
 
             // Otherwise, try to decode as CommandResponse
             do {

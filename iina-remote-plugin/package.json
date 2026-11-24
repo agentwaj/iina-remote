@@ -1,6 +1,7 @@
 {
   "name": "iina-remote-plugin",
   "version": "1.0.0",
+  "type": "module",
   "source": "src/index.ts",
   "targets": {
     "default": {
@@ -14,7 +15,8 @@
     "build": "parcel build && cp ./src/public/* ./dist",
     "watch": "npm run build && parcel watch",
     "link": "iina-plugin link dist",
-    "unlink": "iina-plugin unlink dist"
+    "unlink": "iina-plugin unlink dist",
+    "test": "node --test test/"
   },
   "devDependencies": {
     "iina-plugin-definition": "^0.99.3",

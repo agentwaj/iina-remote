@@ -10,6 +10,10 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private var errorMessage: String {
+        // Checked first: an old plugin is usually the cause of any other error.
+        if webSocketManager.isPluginOutdated {
+            return "The IINA plugin is out of date. Update it and restart IINA."
+        }
         if !webSocketManager.errorMessage.isEmpty { return webSocketManager.errorMessage }
         // Scanner errors are about getting connected; once connected they're stale.
         if webSocketManager.connectionStatus == .connected { return "" }
