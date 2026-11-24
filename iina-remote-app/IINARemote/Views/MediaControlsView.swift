@@ -9,6 +9,10 @@ struct MediaControlsView: View {
     let onForward: () -> Void
     let onBackward: () -> Void
     let onSelectSubtitle: (Int) -> Void
+    let onSubtitleSmaller: () -> Void
+    let onSubtitleLarger: () -> Void
+
+    private var hasSubtitles: Bool { isEnabled && !subtitleTracks.isEmpty }
 
     var body: some View {
         VStack(spacing: 20) {
@@ -48,6 +52,27 @@ struct MediaControlsView: View {
                 isEnabled: isEnabled,
                 onSelect: onSelectSubtitle
             )
+
+            HStack {
+                MediaButton(
+                    icon: "textformat.size.smaller",
+                    action: onSubtitleSmaller,
+                    isEnabled: hasSubtitles
+                )
+
+                Spacer()
+
+                Text("Subtitle Size")
+                    .font(.headline)
+
+                Spacer()
+
+                MediaButton(
+                    icon: "textformat.size.larger",
+                    action: onSubtitleLarger,
+                    isEnabled: hasSubtitles
+                )
+            }
         }
         .frame(maxWidth: .infinity)
         .padding()
@@ -98,9 +123,9 @@ private struct SubtitlePicker: View {
     let tracks = [SubtitleTrack(id: 1, title: "English [eng]"), SubtitleTrack(id: 2, title: "Signs & Songs [eng]")]
 
     VStack(spacing: 20) {
-        MediaControlsView(isEnabled: true, subtitleTracks: tracks, currentSubtitleId: 1, onPlay: {}, onPause: {}, onForward: {}, onBackward: {}, onSelectSubtitle: { _ in })
-        MediaControlsView(isEnabled: true, subtitleTracks: [], currentSubtitleId: 0, onPlay: {}, onPause: {}, onForward: {}, onBackward: {}, onSelectSubtitle: { _ in })
-        MediaControlsView(isEnabled: false, subtitleTracks: [], currentSubtitleId: 0, onPlay: {}, onPause: {}, onForward: {}, onBackward: {}, onSelectSubtitle: { _ in })
+        MediaControlsView(isEnabled: true, subtitleTracks: tracks, currentSubtitleId: 1, onPlay: {}, onPause: {}, onForward: {}, onBackward: {}, onSelectSubtitle: { _ in }, onSubtitleSmaller: {}, onSubtitleLarger: {})
+        MediaControlsView(isEnabled: true, subtitleTracks: [], currentSubtitleId: 0, onPlay: {}, onPause: {}, onForward: {}, onBackward: {}, onSelectSubtitle: { _ in }, onSubtitleSmaller: {}, onSubtitleLarger: {})
+        MediaControlsView(isEnabled: false, subtitleTracks: [], currentSubtitleId: 0, onPlay: {}, onPause: {}, onForward: {}, onBackward: {}, onSelectSubtitle: { _ in }, onSubtitleSmaller: {}, onSubtitleLarger: {})
     }
     .padding()
     .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -1,7 +1,14 @@
 const { ws, core, mpv, event } = iina;
 
 interface RemoteCommand {
-  command: "play" | "pause" | "forward" | "backward" | "setSubtitle";
+  command:
+    | "play"
+    | "pause"
+    | "forward"
+    | "backward"
+    | "setSubtitle"
+    | "subtitleLarger"
+    | "subtitleSmaller";
   token: string;
   // Only for "setSubtitle". 0 turns subtitles off, matching IINA's own "None" track.
   subtitleId?: number;
@@ -156,6 +163,13 @@ const executeCommand = (command: RemoteCommand): CommandResponse => {
           return { ok: false, error: "Invalid subtitle track" };
         }
         core.subtitle.id = command.subtitleId!;
+        break;
+      // Same step as IINA's default Shift+G / Shift+F bindings.
+      case "subtitleLarger":
+        mpv.command("add", ["sub-scale", "0.1"]);
+        break;
+      case "subtitleSmaller":
+        mpv.command("add", ["sub-scale", "-0.1"]);
         break;
 
       default:

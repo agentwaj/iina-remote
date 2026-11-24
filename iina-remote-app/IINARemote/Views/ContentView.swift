@@ -59,7 +59,9 @@ struct ContentView: View {
                     onPause: { webSocketManager.sendCommand("pause") },
                     onForward: { webSocketManager.sendCommand("forward") },
                     onBackward: { webSocketManager.sendCommand("backward") },
-                    onSelectSubtitle: { webSocketManager.selectSubtitle($0) }
+                    onSelectSubtitle: { webSocketManager.selectSubtitle($0) },
+                    onSubtitleSmaller: { webSocketManager.sendCommand("subtitleSmaller") },
+                    onSubtitleLarger: { webSocketManager.sendCommand("subtitleLarger") }
                 )
             }
             .padding()
