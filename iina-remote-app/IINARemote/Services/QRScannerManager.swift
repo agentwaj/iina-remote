@@ -1,14 +1,18 @@
 import AVFoundation
-import Combine
+import Observation
 import SwiftUI
 
-class QRScannerManager: NSObject, ObservableObject, AVCaptureMetadataOutputObjectsDelegate {
-    @Published var connectionData: ConnectionData?
-    @Published var scanningError: String = ""
-    @Published var isScanning: Bool = false
+@Observable
+final class QRScannerManager: NSObject, AVCaptureMetadataOutputObjectsDelegate {
+    var connectionData: ConnectionData?
+    var scanningError: String = ""
+    private(set) var isScanning: Bool = false
 
-    private var captureSession: AVCaptureSession?
-    private var previewLayer: AVCaptureVideoPreviewLayer?
+    @ObservationIgnored private var captureSession: AVCaptureSession?
+    @ObservationIgnored private var previewLayer: AVCaptureVideoPreviewLayer?
+    /// startRunning/stopRunning block, so they run off the main thread, and on
+    /// one serial queue so a stop can never overtake the start before it.
+    @ObservationIgnored private let sessionQueue = DispatchQueue(label: "QRScannerManager.session")
 
     func requestCameraPermission() async -> Bool {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
@@ -19,9 +23,7 @@ class QRScannerManager: NSObject, ObservableObject, AVCaptureMetadataOutputObjec
         case .notDetermined:
             return await AVCaptureDevice.requestAccess(for: .video)
         case .denied, .restricted:
-            await MainActor.run {
-                scanningError = "Camera access denied. Please enable in Settings."
-            }
+            scanningError = "Camera access denied. Please enable in Settings."
             return false
         @unknown default:
             return false
@@ -29,23 +31,17 @@ class QRScannerManager: NSObject, ObservableObject, AVCaptureMetadataOutputObjec
     }
 
     func startScanning() async -> AVCaptureVideoPreviewLayer? {
-        await MainActor.run {
-            scanningError = ""
-            isScanning = true
-        }
+        scanningError = ""
+        isScanning = true
 
         guard await requestCameraPermission() else {
-            await MainActor.run {
-                isScanning = false
-            }
+            isScanning = false
             return nil
         }
 
         guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else {
-            await MainActor.run {
-                scanningError = "No camera available"
-                isScanning = false
-            }
+            scanningError = "No camera available"
+            isScanning = false
             return nil
         }
 
@@ -59,10 +55,8 @@ class QRScannerManager: NSObject, ObservableObject, AVCaptureMetadataOutputObjec
             if captureSession!.canAddInput(videoInput) {
                 captureSession!.addInput(videoInput)
             } else {
-                await MainActor.run {
-                    scanningError = "Cannot add video input"
-                    isScanning = false
-                }
+                scanningError = "Cannot add video input"
+                isScanning = false
                 return nil
             }
 
@@ -74,10 +68,8 @@ class QRScannerManager: NSObject, ObservableObject, AVCaptureMetadataOutputObjec
                 metadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
                 metadataOutput.metadataObjectTypes = [.qr]
             } else {
-                await MainActor.run {
-                    scanningError = "Cannot add metadata output"
-                    isScanning = false
-                }
+                scanningError = "Cannot add metadata output"
+                isScanning = false
                 return nil
             }
 
@@ -86,40 +78,37 @@ class QRScannerManager: NSObject, ObservableObject, AVCaptureMetadataOutputObjec
             previewLayer = AVCaptureVideoPreviewLayer(session: captureSession!)
             previewLayer?.videoGravity = .resizeAspectFill
 
-            let sessionID = captureSession.map(ObjectIdentifier.init)
-            DispatchQueue.global(qos: .userInitiated).async {
-                self.captureSession?.startRunning()
+            // AVCaptureSession isn't marked Sendable, but Apple documents
+            // startRunning/stopRunning as safe (and recommended) off the main thread.
+            nonisolated(unsafe) let session = captureSession!
+            sessionQueue.async { session.startRunning() }
 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    DispatchQueue.main.async {
-                        // If a code was scanned (or the sheet closed) within the second,
-                        // stopScanning() already ended this session on purpose.
-                        guard self.captureSession.map(ObjectIdentifier.init) == sessionID else { return }
+            let sessionID = ObjectIdentifier(session)
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                // If a code was scanned (or the sheet closed) within the second,
+                // stopScanning() already ended this session on purpose.
+                guard captureSession.map(ObjectIdentifier.init) == sessionID else { return }
 
-                        let isRunning = self.captureSession?.isRunning == true
-
-                        if !isRunning {
-                            self.scanningError = "Failed to start camera session"
-                            self.isScanning = false
-                        }
-                    }
+                if captureSession?.isRunning != true {
+                    scanningError = "Failed to start camera session"
+                    isScanning = false
                 }
             }
 
             return previewLayer
         } catch {
-            await MainActor.run {
-                scanningError = "Camera setup failed: \(error.localizedDescription)"
-                isScanning = false
-            }
+            scanningError = "Camera setup failed: \(error.localizedDescription)"
+            isScanning = false
             return nil
         }
     }
 
     func stopScanning() {
-        DispatchQueue.global(qos: .userInitiated).async {
-            self.captureSession?.stopRunning()
-        }
+        // Hand over the session itself: by the time the queue runs, the
+        // property below has already been cleared.
+        nonisolated(unsafe) let session = captureSession
+        sessionQueue.async { session?.stopRunning() }
         captureSession = nil
         previewLayer = nil
         isScanning = false
