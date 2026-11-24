@@ -56,14 +56,22 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         errorMessage = ""
         isManualDisconnect = false
 
-        let url = URL(string: "ws://\(connectionData.host):\(connectionData.port)")!
-        webSocketTask = urlSession.webSocketTask(with: url)
+        // Close any previous socket (e.g. one left over from before the app was
+        // backgrounded). Its callbacks are ignored by the identity checks below.
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
 
-        webSocketTask?.resume()
-        receiveMessage()
+        let url = URL(string: "ws://\(connectionData.host):\(connectionData.port)")!
+        let task = urlSession.webSocketTask(with: url)
+        webSocketTask = task
+
+        task.resume()
+        receiveMessage(on: task)
 
         // Set a timeout for connection
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            // A newer connect() owns the state now.
+            guard task === self.webSocketTask else { return }
+
             if self.connectionStatus == .connecting {
                 self.connectionStatus = .disconnected
 
@@ -111,14 +119,17 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         }
     }
 
-    private func receiveMessage() {
-        webSocketTask?.receive { [weak self] result in
+    private func receiveMessage(on task: URLSessionWebSocketTask) {
+        task.receive { [weak self] result in
             switch result {
             case let .failure(error):
                 DispatchQueue.main.async {
-                    self?.connectionStatus = .disconnected
+                    // A failure from a replaced socket says nothing about the current one.
+                    guard let self = self, task === self.webSocketTask else { return }
 
-                    guard let self = self, !self.isManualDisconnect else { return }
+                    self.connectionStatus = .disconnected
+
+                    guard !self.isManualDisconnect else { return }
 
                     if self.isAutoConnecting {
                         self.clearSavedConnectionData()
@@ -138,16 +149,20 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
                 @unknown default:
                     break
                 }
-                self?.receiveMessage()
+                self?.receiveMessage(on: task)
             }
         }
     }
 
     // MARK: - URLSessionWebSocketDelegate
 
-    func urlSession(_: URLSession, webSocketTask _: URLSessionWebSocketTask, didOpenWithProtocol _: String?) {
+    func urlSession(_: URLSession, webSocketTask task: URLSessionWebSocketTask, didOpenWithProtocol _: String?) {
         DispatchQueue.main.async {
+            guard task === self.webSocketTask else { return }
+
             self.connectionStatus = .connected
+            // Anything from earlier attempts no longer applies.
+            self.errorMessage = ""
 
             if let connectionData = self.connectionData {
                 self.saveConnectionData(connectionData)
@@ -157,8 +172,10 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         }
     }
 
-    func urlSession(_: URLSession, webSocketTask _: URLSessionWebSocketTask, didCloseWith _: URLSessionWebSocketTask.CloseCode, reason _: Data?) {
+    func urlSession(_: URLSession, webSocketTask task: URLSessionWebSocketTask, didCloseWith _: URLSessionWebSocketTask.CloseCode, reason _: Data?) {
         DispatchQueue.main.async {
+            guard task === self.webSocketTask else { return }
+
             self.connectionStatus = .disconnected
         }
     }
@@ -176,7 +193,10 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
             // Otherwise, try to decode as CommandResponse
             do {
                 let response = try JSONDecoder().decode(CommandResponse.self, from: data)
-                if !response.ok {
+                if response.ok {
+                    // A command just went through, so any earlier error is stale.
+                    self.errorMessage = ""
+                } else {
                     self.errorMessage = response.error ?? "Unknown error"
                 }
             } catch {

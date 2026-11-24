@@ -6,12 +6,19 @@ struct ContentView: View {
     @State private var showingScanner = false
     @Environment(\.scenePhase) private var scenePhase
 
+    private var errorMessage: String {
+        if !webSocketManager.errorMessage.isEmpty { return webSocketManager.errorMessage }
+        // Scanner errors are about getting connected; once connected they're stale.
+        if webSocketManager.connectionStatus == .connected { return "" }
+        return qrScanner.scanningError
+    }
+
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
                 StatusView(
                     status: webSocketManager.connectionStatus,
-                    errorMessage: webSocketManager.errorMessage.isEmpty ? qrScanner.scanningError : webSocketManager.errorMessage
+                    errorMessage: errorMessage
                 )
 
                 ConnectionButtonsView(
