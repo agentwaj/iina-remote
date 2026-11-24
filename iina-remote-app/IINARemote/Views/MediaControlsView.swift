@@ -2,10 +2,13 @@ import SwiftUI
 
 struct MediaControlsView: View {
     let isEnabled: Bool
+    let subtitleTracks: [SubtitleTrack]
+    let currentSubtitleId: Int
     let onPlay: () -> Void
     let onPause: () -> Void
     let onForward: () -> Void
     let onBackward: () -> Void
+    let onSelectSubtitle: (Int) -> Void
 
     var body: some View {
         VStack(spacing: 20) {
@@ -38,6 +41,13 @@ struct MediaControlsView: View {
                     isEnabled: isEnabled
                 )
             }
+
+            SubtitlePicker(
+                tracks: subtitleTracks,
+                currentId: currentSubtitleId,
+                isEnabled: isEnabled,
+                onSelect: onSelectSubtitle
+            )
         }
         .frame(maxWidth: .infinity)
         .padding()
@@ -47,10 +57,50 @@ struct MediaControlsView: View {
     }
 }
 
+private struct SubtitlePicker: View {
+    let tracks: [SubtitleTrack]
+    let currentId: Int
+    let isEnabled: Bool
+    let onSelect: (Int) -> Void
+
+    private var canSelect: Bool { isEnabled && !tracks.isEmpty }
+
+    private var label: String {
+        if tracks.isEmpty { return "No Subtitles" }
+        let current = tracks.first { $0.id == currentId }?.title ?? "Off"
+        return "Subtitles: \(current)"
+    }
+
+    var body: some View {
+        Menu {
+            // The selection mirrors what IINA reports back, so it stays correct
+            // when subtitles are also changed from the Mac.
+            Picker("Subtitles", selection: Binding(get: { currentId }, set: onSelect)) {
+                Text("Off").tag(0)
+                ForEach(tracks) { track in
+                    Text(track.title).tag(track.id)
+                }
+            }
+        } label: {
+            Label(label, systemImage: "captions.bubble")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(canSelect ? Color.blue : Color.gray)
+                .foregroundColor(.white)
+                .cornerRadius(10)
+        }
+        .disabled(!canSelect)
+    }
+}
+
 #Preview {
+    let tracks = [SubtitleTrack(id: 1, title: "English [eng]"), SubtitleTrack(id: 2, title: "Signs & Songs [eng]")]
+
     VStack(spacing: 20) {
-        MediaControlsView(isEnabled: true, onPlay: {}, onPause: {}, onForward: {}, onBackward: {})
-        MediaControlsView(isEnabled: false, onPlay: {}, onPause: {}, onForward: {}, onBackward: {})
+        MediaControlsView(isEnabled: true, subtitleTracks: tracks, currentSubtitleId: 1, onPlay: {}, onPause: {}, onForward: {}, onBackward: {}, onSelectSubtitle: { _ in })
+        MediaControlsView(isEnabled: true, subtitleTracks: [], currentSubtitleId: 0, onPlay: {}, onPause: {}, onForward: {}, onBackward: {}, onSelectSubtitle: { _ in })
+        MediaControlsView(isEnabled: false, subtitleTracks: [], currentSubtitleId: 0, onPlay: {}, onPause: {}, onForward: {}, onBackward: {}, onSelectSubtitle: { _ in })
     }
     .padding()
     .frame(maxWidth: .infinity, maxHeight: .infinity)
